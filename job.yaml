@@ -1,0 +1,23 @@
+name: Secret Scan on PR
+
+on:
+  pull_request:
+    branches:
+      - main   # Only when PR is raised against main
+
+jobs:
+  secret-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+
+      - name: Install TruffleHog
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/trufflesecurity/trufflehog/main/scripts/install.sh | sh
+
+      - name: Run TruffleHog Secret Scan
+        run: |
+          ./trufflehog filesystem --directory . --fail
