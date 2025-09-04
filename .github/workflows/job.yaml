@@ -28,9 +28,14 @@ jobs:
 
       - name: Run TruffleHog on changed files
         run: |
+          failed=0
           while read file; do
             if [ -f "$file" ]; then
               echo "🔍 Scanning $file"
-              trufflehog filesystem --directory "$file" --fail
+              # Scan the file directly, not as a directory
+              if ! trufflehog filesystem "$file" --fail; then
+                failed=1
+              fi
             fi
           done < changed_files.txt
+          exit $failed
