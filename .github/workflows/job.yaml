@@ -9,34 +9,16 @@ jobs:
   secret-scan:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout full history
+      - name: Checkout PR branch
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0   # required for git diff
+          ref: ${{ github.head_ref || github.ref_name }}
 
       - name: Install TruffleHog
         run: |
           curl -sSfL https://raw.githubusercontent.com/trufflesecurity/trufflehog/main/scripts/install.sh | sh
           sudo mv ./trufflehog /usr/local/bin/trufflehog
 
-      - name: Get changed files in PR
-        id: changed-files
+      - name: Run TruffleHog Filesystem Scan
         run: |
-          git fetch origin main
-          git diff --name-only origin/main...HEAD > changed_files.txt
-          cat changed_files.txt
-
-      - name: Run TruffleHog on changed files
-        run: |
-          while read file; do
-            if [ -f "$file" ]; then
-              echo "🔍 Scanning $file"
-              trufflehog filesystem --directory "$file" --only-verified --fail
-            fi
-          done < changed_files.txt
-
-
-
-
-
-
+          trufflehog filesystem --directory . --only-verified --fail
