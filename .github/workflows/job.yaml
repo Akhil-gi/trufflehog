@@ -3,7 +3,7 @@ name: Secret Scan on PR
 on:
   pull_request:
     branches:
-      - main   # Runs only when PR is raised against main
+      - main
 
 jobs:
   secret-scan:
@@ -13,6 +13,11 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Install TruffleHog
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/trufflesecurity/trufflehog/main/scripts/install.sh | sh
+          sudo mv ./bin/trufflehog /usr/local/bin/trufflehog
 
       - name: Install yq (YAML processor)
         run: |
@@ -25,10 +30,9 @@ jobs:
           while read file; do
             if [[ -f "$file" && "$file" == *.yaml ]]; then
               echo "📜 Checking secrets in $file"
-              # Extract values under .data and check if they are valid base64
               for value in $(yq eval '.data[]' "$file"); do
                 if ! echo "$value" | base64 -d >/dev/null 2>&1; then
-                  echo "❌ Secret exposed in $file: $value"
+                  echo "❌ Secret exposed in $file (not base64): $value"
                   failed=1
                 fi
               done
@@ -40,4 +44,30 @@ jobs:
             exit 1
           else
             echo "✅ All secrets are base64 encoded."
+          fi
+
+      - name: Decode Kubernetes Secrets (for scanning)
+        run: |
+          while read file; do
+            if [[ -f "$file" && "$file" == *.yaml ]]; then
+              echo "📜 Decoding secrets in $file"
+              yq eval '.data |= with_entries(.value |= @base64d)' "$file" > "$file.decoded"
+            fi
+          done < <(git diff --name-only origin/main...HEAD)
+
+      - name: Run TruffleHog on decoded files
+        run: |
+          failed=0
+          for f in $(find . -name "*.decoded"); do
+            echo "🔍 Scanning $f"
+            if ! trufflehog filesystem "$f" --fail; then
+              echo "❌ Secret detected in $f"
+              failed=1
+            fi
+          done
+          if [[ $failed -eq 1 ]]; then
+            echo "🚨 TruffleHog found secrets!"
+            exit 1
+          else
+            echo "✅ No secrets found by TruffleHog."
           fi
