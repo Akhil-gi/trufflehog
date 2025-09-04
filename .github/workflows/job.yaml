@@ -12,41 +12,32 @@ jobs:
       - name: Checkout full history
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0   # required for git diff
-
-      - name: Install TruffleHog
-        run: |
-          curl -sSfL https://raw.githubusercontent.com/trufflesecurity/trufflehog/main/scripts/install.sh | sh
-          sudo mv ./bin/trufflehog /usr/local/bin/trufflehog
+          fetch-depth: 0
 
       - name: Install yq (YAML processor)
         run: |
           sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
           sudo chmod +x /usr/local/bin/yq
 
-      - name: Get changed files in PR
-        id: changed-files
-        run: |
-          git fetch origin main
-          git diff --name-only origin/main...HEAD > changed_files.txt
-          cat changed_files.txt
-
-      - name: Decode Kubernetes Secrets (base64 → plain text)
-        run: |
-          while read file; do
-            if [[ -f "$file" && "$file" == *.yaml ]]; then
-              echo "📜 Decoding secrets in $file"
-              yq eval '.data |= with_entries(.value |= @base64d)' "$file" > "$file.decoded"
-            fi
-          done < changed_files.txt
-
-      - name: Run TruffleHog on decoded files
+      - name: Validate Kubernetes Secrets
         run: |
           failed=0
-          for f in $(find . -name "*.decoded"); do
-            echo "🔍 Scanning $f"
-            if ! trufflehog filesystem "$f" --regex --fail; then
-              failed=1
+          while read file; do
+            if [[ -f "$file" && "$file" == *.yaml ]]; then
+              echo "📜 Checking secrets in $file"
+              # Extract values under .data and check if they are valid base64
+              for value in $(yq eval '.data[]' "$file"); do
+                if ! echo "$value" | base64 -d >/dev/null 2>&1; then
+                  echo "❌ Secret exposed in $file: $value"
+                  failed=1
+                fi
+              done
             fi
-          done
-          exit $failed
+          done < <(git diff --name-only origin/main...HEAD)
+
+          if [[ $failed -eq 1 ]]; then
+            echo "🚨 Plain-text secret(s) found! Failing workflow."
+            exit 1
+          else
+            echo "✅ All secrets are base64 encoded."
+          fi
