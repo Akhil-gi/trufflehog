@@ -19,11 +19,6 @@ jobs:
           curl -sSfL https://raw.githubusercontent.com/trufflesecurity/trufflehog/main/scripts/install.sh | sh
           sudo mv ./bin/trufflehog /usr/local/bin/trufflehog
 
-      - name: Install yq (YAML processor)
-        run: |
-          sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
-          sudo chmod +x /usr/local/bin/yq
-
       - name: Get changed files in PR
         id: changed-files
         run: |
@@ -36,31 +31,19 @@ jobs:
           while read file; do
             if [[ -f "$file" && "$file" == *.yaml ]]; then
               echo "📜 Decoding secrets in $file"
-              yq eval '.data |= with_entries(.value |= @base64d)' "$file" > "$file.decoded"
+              # safely decode: if not base64, keep original
+              yq eval '.data |= with_entries(.value |= (try @base64d catch .))' "$file" > "$file.decoded"
             fi
           done < changed_files.txt
 
       - name: Run TruffleHog on decoded files
         run: |
           failed=0
-
           for f in $(find . -name "*.decoded"); do
             echo "🔍 Scanning $f"
             if ! trufflehog filesystem "$f" --regex --fail; then
+              echo "🚨 Secret detected in $f!"
               failed=1
             fi
           done
           exit $failed
-
-             for f in $(find . -name "*.decoded"); do
-            echo "🔍 Scanning $f"
-            if ! trufflehog filesystem "$f" --regex --fail; then
-              echo "🚨 Secret(s) detected in $f"
-             failed=1
-           else
-            echo "✅ No secrets found in $f"
-           fi
-             done
-             exit $failed
-
-
