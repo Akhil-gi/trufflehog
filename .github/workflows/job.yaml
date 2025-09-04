@@ -3,7 +3,7 @@ name: Secret Scan on PR
 on:
   pull_request:
     branches:
-      - main   # Only when PR is raised against main
+      - main   # Runs only when PR is raised against main
 
 jobs:
   secret-scan:
@@ -12,13 +12,12 @@ jobs:
       - name: Checkout PR branch
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.head_ref }}
-
-      - name: Install TruffleHog
-        run: |
-          curl -sSfL https://raw.githubusercontent.com/trufflesecurity/trufflehog/main/scripts/install.sh | sh
+          ref: ${{ github.head_ref || github.ref_name }}
 
       - name: Run TruffleHog Secret Scan
-        run: |
-          ./trufflehog filesystem --directory . --fail
+        uses: trufflesecurity/trufflehog@main
+        with:
+          path: .
+          fail: true   # Fails job if secrets are found
+
 
