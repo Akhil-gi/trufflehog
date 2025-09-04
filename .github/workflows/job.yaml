@@ -32,19 +32,10 @@ jobs:
           while read file; do
             if [ -f "$file" ]; then
               echo "🔍 Scanning $file"
-              # Run TruffleHog without verification
-              result=$(trufflehog filesystem "$file" --no-verification --json || true)
-
-              # Check if any detector matched
-              if echo "$result" | grep -q '"Detector"'; then
-                echo "❌ Secret found in $file"
-                echo "$result"
-                echo "::error file=$file::Potential secret detected"
+              # Scan the file directly, not as a directory
+              if ! trufflehog filesystem "$file" --fail; then
                 failed=1
-              else
-                echo "✅ No secrets found in $file"
               fi
             fi
           done < changed_files.txt
-
           exit $failed
