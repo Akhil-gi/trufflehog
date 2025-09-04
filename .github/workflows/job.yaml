@@ -19,6 +19,11 @@ jobs:
           curl -sSfL https://raw.githubusercontent.com/trufflesecurity/trufflehog/main/scripts/install.sh | sh
           sudo mv ./bin/trufflehog /usr/local/bin/trufflehog
 
+      - name: Install yq (YAML processor)
+        run: |
+          sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+
       - name: Get changed files in PR
         id: changed-files
         run: |
@@ -26,16 +31,22 @@ jobs:
           git diff --name-only origin/main...HEAD > changed_files.txt
           cat changed_files.txt
 
-      - name: Run TruffleHog on changed files
+      - name: Decode Kubernetes Secrets (base64 → plain text)
         run: |
-          failed=0
           while read file; do
-            if [ -f "$file" ]; then
-              echo "🔍 Scanning $file"
-              # Scan the file directly, not as a directory
-              if ! trufflehog filesystem "$file" --fail; then
-                failed=1
-              fi
+            if [[ -f "$file" && "$file" == *.yaml ]]; then
+              echo "📜 Decoding secrets in $file"
+              yq eval '.data |= with_entries(.value |= @base64d)' "$file" > "$file.decoded"
             fi
           done < changed_files.txt
+
+      - name: Run TruffleHog on decoded files
+        run: |
+          failed=0
+          for f in $(find . -name "*.decoded"); do
+            echo "🔍 Scanning $f"
+            if ! trufflehog filesystem "$f" --regex --fail; then
+              failed=1
+            fi
+          done
           exit $failed
