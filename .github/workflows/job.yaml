@@ -32,13 +32,13 @@ jobs:
           while read file; do
             if [ -f "$file" ]; then
               echo "🔍 Scanning $file"
-              # Run Trufflehog with regex-based scanning
-              result=$(trufflehog filesystem "$file" --regex || true)
+              # Run Trufflehog scan
+              result=$(trufflehog filesystem "$file" || true)
 
               if echo "$result" | grep -q "Reason"; then
                 echo "❌ Secret found in $file"
                 echo "$result"
-                # GitHub annotation for PR inline error
+                # GitHub annotation for inline PR error
                 echo "::error file=$file::Potential secret detected in $file"
                 failed=1
               fi
