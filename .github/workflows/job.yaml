@@ -31,6 +31,6 @@ jobs:
           while read file; do
             if [ -f "$file" ]; then
               echo "🔍 Scanning $file"
-              trufflehog filesystem --directory "$file" --only-verified --fail
+              trufflehog filesystem --directory "$file" --fail
             fi
           done < changed_files.txt
