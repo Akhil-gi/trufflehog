@@ -21,3 +21,4 @@ jobs:
       - name: Run TruffleHog Secret Scan
         run: |
           ./trufflehog filesystem --directory . --fail
+
