@@ -32,22 +32,19 @@ jobs:
           while read file; do
             if [ -f "$file" ]; then
               echo "🔍 Scanning $file"
-              # Run Trufflehog scan
-              result=$(trufflehog filesystem "$file" --no-verification || true)
+              # Run TruffleHog without verification
+              result=$(trufflehog filesystem "$file" --no-verification --json || true)
 
-              if echo "$result" | grep -q "Reason"; then
+              # Check if any detector matched
+              if echo "$result" | grep -q '"Detector"'; then
                 echo "❌ Secret found in $file"
                 echo "$result"
-                # GitHub annotation for inline PR error
-                echo "::error file=$file::Potential secret detected in $file"
+                echo "::error file=$file::Potential secret detected"
                 failed=1
+              else
+                echo "✅ No secrets found in $file"
               fi
             fi
           done < changed_files.txt
 
-          if [ $failed -eq 1 ]; then
-            echo "🚨 Secret(s) detected! Failing the workflow."
-            exit 1
-          else
-            echo "✅ No secrets found."
-          fi
+          exit $failed
