@@ -33,7 +33,7 @@ jobs:
             if [ -f "$file" ]; then
               echo "🔍 Scanning $file"
               # Run Trufflehog scan
-              result=$(trufflehog filesystem "$file" || true)
+              result=$(trufflehog filesystem "$file" --no-verification || true)
 
               if echo "$result" | grep -q "Reason"; then
                 echo "❌ Secret found in $file"
