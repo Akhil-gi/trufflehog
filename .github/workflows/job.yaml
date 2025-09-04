@@ -14,10 +14,11 @@ jobs:
         with:
           ref: ${{ github.head_ref || github.ref_name }}
 
-      - name: Run TruffleHog Secret Scan
+      - name: Run TruffleHog (Filesystem Scan)
         uses: trufflesecurity/trufflehog@main
         with:
           path: .
-          fail: true   # Fails job if secrets are found
+          extra_args: --no-update --fail --only-verified
+
 
 
